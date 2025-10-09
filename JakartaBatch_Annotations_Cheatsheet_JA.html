@@ -1,0 +1,226 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jakarta Batch 注釈チートシート（よく使うものまとめ）</title>
+
+<style>
+ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+      line-height:1.65; padding:28px; max-width:1100px; margin:0 auto; color:#1f2328;}
+ h1{font-size:28px;margin:0 0 10px;}
+ .sub{color:#57606a;margin-bottom:24px}
+ h2{font-size:22px;margin:28px 0 10px;border-left:5px solid #3b82f6;padding-left:10px;}
+ h3{font-size:18px;margin:22px 0 8px;color:#0f172a}
+ table{border-collapse:collapse;width:100%;margin:8px 0 16px;}
+ th,td{border:1px solid #e5e7eb;padding:10px;vertical-align:top}
+ th{background:#f8fafc;text-align:left}
+ code{font-family:ui-monospace,Consolas,Menlo,monospace;background:#f6f8fa;padding:1px 4px;border-radius:4px}
+ pre{background:#0f172a;color:#e5e7eb;padding:14px;border-radius:8px;overflow:auto}
+ .pkg{color:#475569}
+ .note{background:#fffbdd;border:1px solid #f6e08f;padding:10px;border-radius:8px;margin:12px 0}
+ .ok{color:#059669}
+ .warn{color:#b45309}
+ .x{color:#dc2626}
+ .tiny{font-size:12px;color:#64748b}
+ ul{margin:0 0 0 20px}
+</style>
+
+</head><body>
+<h1>Jakarta Batch 注釈チートシート</h1>
+<div class="sub">最終更新: 2025-10-09 12:05（UTF-8 / 日本語）</div>
+
+<div class="note">
+<b>対象:</b> Jakarta Batch（JSR 352 / Jakarta EE 10 以降）と CDI（DI/スコープ）の実務で頻出の注釈を整理。<br>
+<b>補足:</b> リスナーやパーティション等は「インターフェース実装（クラス）」が基本で、注釈は <code>@Named</code> による Bean 化が中心です。
+</div>
+
+<h2>1. コア（CDI / Batch の注入・命名）</h2>
+<table>
+<tr><th>注釈</th><th>パッケージ</th><th>概要</th><th>使用例</th></tr>
+<tr>
+<td><code>@Named("beanName")</code></td>
+<td class="pkg">jakarta.inject.Named</td>
+<td>Bean を名前付きで登録。Job XML の <code>ref="beanName"</code> と紐付ける。</td>
+<td><pre>@@Named("csvReader")
+public class CsvReader extends AbstractItemReader { ... }</pre></td>
+</tr>
+<tr>
+<td><code>@Inject</code></td>
+<td class="pkg">jakarta.inject.Inject</td>
+<td>依存性注入。Reader/Processor/Writer/Listener に DAO や設定を注入。</td>
+<td><pre>@@Inject
+MyDao dao;</pre></td>
+</tr>
+<tr>
+<td><code>@BatchProperty(name="...")</code></td>
+<td class="pkg">jakarta.batch.api.BatchProperty</td>
+<td>Job XML（<code>&lt;properties&gt;</code>）や起動時パラメータをフィールドに注入。</td>
+<td><pre>@@Inject @@BatchProperty(name="input")
+String inputPath;</pre></td>
+</tr>
+</table>
+
+<h2>2. スコープ（CDI ライフサイクル）</h2>
+<table>
+<tr><th>注釈</th><th>パッケージ</th><th>用途</th><th>メモ</th></tr>
+<tr>
+<td><code>@Dependent</code></td>
+<td class="pkg">jakarta.enterprise.context.Dependent</td>
+<td>デフォルト・スコープ。注入先と同一ライフサイクル。</td>
+<td>軽量で扱いやすい。</td>
+</tr>
+<tr>
+<td><code>@ApplicationScoped</code></td>
+<td class="pkg">jakarta.enterprise.context.ApplicationScoped</td>
+<td>アプリ全体で 1 インスタンス共有。</td>
+<td>設定/キャッシュ等に。</td>
+</tr>
+<tr>
+<td><code>@JobScoped</code></td>
+<td class="pkg">org.jberet.cdi.JobScoped <span class="tiny">(JBeret 実装)</span></td>
+<td>ジョブ実行単位のスコープ。</td>
+<td class="warn">実装（JBeret 等）依存。利用可否はランタイムに依る。</td>
+</tr>
+<tr>
+<td><code>@StepScoped</code></td>
+<td class="pkg">org.jberet.cdi.StepScoped <span class="tiny">(JBeret 実装)</span></td>
+<td>ステップ実行単位のスコープ。</td>
+<td class="warn">実装依存。必要時のみ使用。</td>
+</tr>
+</table>
+
+<div class="note">
+<b>注意:</b> Job/Step のスコープ注釈は Jakarta Batch 標準 API ではなく、実装（例: JBeret）側が提供することがあります。<br>
+汎用性重視なら <code>@Dependent</code> または <code>@ApplicationScoped</code> を基本にし、必要に応じて実装スコープを採用してください。
+</div>
+
+<h2>3. 代表的リスナー（インターフェース実装 + <code>@Named</code>）</h2>
+<p class="tiny">※ これらは「注釈」ではなく、<b>インターフェース</b>を実装したクラスに <code>@Named</code> を付けて XML の <code>&lt;listeners&gt;</code> から参照します。</p>
+<table>
+<tr><th>インターフェース</th><th>パッケージ</th><th>主なコールバック</th><th>用途</th></tr>
+<tr>
+<td>JobListener</td>
+<td class="pkg">jakarta.batch.api.listener.JobListener</td>
+<td><code>beforeJob()</code>, <code>afterJob()</code></td>
+<td>開始/終了のログ・計測・通知</td>
+</tr>
+<tr>
+<td>StepListener</td>
+<td class="pkg">jakarta.batch.api.listener.StepListener</td>
+<td><code>beforeStep()</code>, <code>afterStep()</code></td>
+<td>ステップ単位の監視・後片付け</td>
+</tr>
+<tr>
+<td>ChunkListener</td>
+<td class="pkg">jakarta.batch.api.listener.ChunkListener</td>
+<td><code>beforeChunk()</code>, <code>afterChunk()</code></td>
+<td>Chunk 単位のメトリクス/トレース</td>
+</tr>
+<tr>
+<td>ItemReadListener</td>
+<td class="pkg">jakarta.batch.api.listener.ItemReadListener</td>
+<td><code>beforeRead()</code>, <code>afterRead()</code>, <code>onReadError()</code></td>
+<td>読取エラー行の記録・再現</td>
+</tr>
+<tr>
+<td>ItemProcessListener</td>
+<td class="pkg">jakarta.batch.api.listener.ItemProcessListener</td>
+<td><code>beforeProcess()</code>, <code>afterProcess()</code>, <code>onProcessError()</code></td>
+<td>変換/検証の失敗分析</td>
+</tr>
+<tr>
+<td>ItemWriteListener</td>
+<td class="pkg">jakarta.batch.api.listener.ItemWriteListener</td>
+<td><code>beforeWrite()</code>, <code>afterWrite()</code>, <code>onWriteError()</code></td>
+<td>書込失敗の退避・再試行補助</td>
+</tr>
+<tr>
+<td>SkipListener</td>
+<td class="pkg">jakarta.batch.api.listener.SkipListener</td>
+<td><code>onSkipReadItem()</code>, <code>onSkipProcessItem()</code>, <code>onSkipWriteItem()</code></td>
+<td>スキップ行の収集・検証</td>
+</tr>
+<tr>
+<td>RetryListener</td>
+<td class="pkg">jakarta.batch.api.listener.RetryListener</td>
+<td><code>onRetryReadException()</code> など</td>
+<td>リトライ時のログ・メトリクス</td>
+</tr>
+</table>
+
+<pre>// 例：リスナーを Bean 登録して XML から参照
+@@Named("jobLogger")
+public class JobLogger implements jakarta.batch.api.listener.JobListener {
+  @@Override public void beforeJob() { System.out.println("[Job] start"); }
+  @@Override public void afterJob()  { System.out.println("[Job] end");   }
+}
+
+// job.xml
+&lt;listeners&gt;
+  &lt;listener ref="jobLogger"/&gt;
+&lt;/listeners&gt;
+</pre>
+
+<h2>4. パーティション関連（インターフェース）</h2>
+<table>
+<tr><th>インターフェース</th><th>役割</th><th>概要</th></tr>
+<tr>
+<td>PartitionMapper</td>
+<td>分割計画</td>
+<td>分割数・各分割のプロパティを決定。</td>
+</tr>
+<tr>
+<td>PartitionCollector</td>
+<td>収集</td>
+<td>分割ごとに中間結果を収集。</td>
+</tr>
+<tr>
+<td>PartitionAnalyzer</td>
+<td>解析</td>
+<td>収集結果を解析し全体にフィードバック。</td>
+</tr>
+<tr>
+<td>PartitionReducer</td>
+<td>集約</td>
+<td>全分割の終了後に最終集約処理。</td>
+</tr>
+</table>
+
+<h2>5. よく使う設定と紐付け（XML &amp; 注釈）</h2>
+<table>
+<tr><th>目的</th><th>XML 側</th><th>クラス側</th></tr>
+<tr>
+<td>Reader/Processor/Writer の登録</td>
+<td><code>&lt;reader ref="csvReader"/&gt;</code></td>
+<td><code>@@Named("csvReader")</code> を付ける</td>
+</tr>
+<tr>
+<td>Job パラメータ注入</td>
+<td><pre>&lt;properties&gt;
+  &lt;property name="input" value="#{jobParameters['input']}"/&gt;
+&lt;/properties&gt;</pre></td>
+<td><code>@@Inject @@BatchProperty(name="input") String path;</code></td>
+</tr>
+<tr>
+<td>Skip/Retry 設定</td>
+<td><pre>&lt;chunk skip-limit="50" retry-limit="3"&gt;
+  &lt;skippable-exception-classes&gt;
+    &lt;include class="java.lang.NumberFormatException"/&gt;
+  &lt;/skippable-exception-classes&gt;
+&lt;/chunk&gt;</pre></td>
+<td>必要に応じて Listener 実装で詳細ログ</td>
+</tr>
+</table>
+
+<h2>6. 実務 Tips</h2>
+<ul>
+ <li><b>命名一貫性:</b> <code>@Named("foo")</code> と XML の <code>ref="foo"</code> を厳密一致。</li>
+ <li><b>パラメータ:</b> 文字列以外はクラス側でパース（int/boolean 等）。</li>
+ <li><b>スコープ:</b> 汎用性重視なら <code>@Dependent</code> を基本、状態共有は <code>@ApplicationScoped</code>。</li>
+ <li><b>幂等性:</b> Writer は UPSERT/MERGE を使い再実行に強くする。</li>
+ <li><b>監視:</b> リスナーでメトリクス・異常行を収集（再現性確保）。</li>
+</ul>
+
+<div class="note">
+<b>バージョンに関する注意:</b> ここで挙げたパッケージ/インターフェースは Jakarta EE 10 世代を前提にしています。実装（JBeret/WildFly/Payara 等）により細部が異なる場合があります。
+</div>
+
+</body></html>

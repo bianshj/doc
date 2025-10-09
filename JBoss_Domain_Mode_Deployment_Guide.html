@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JBoss/WildFly Domain 模式部署错误解决指南</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+                   "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+      margin: 0; padding: 2rem; line-height: 1.7; font-size: 16px;
+    }
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { font-size: 1.8rem; margin: 0 0 1rem; }
+    h2 { font-size: 1.4rem; margin-top: 2rem; }
+    h3 { font-size: 1.1rem; margin-top: 1.2rem; }
+    p { margin: 0.5rem 0; }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+                   "Courier New", monospace;
+      font-size: 0.95rem;
+    }
+    pre {
+      background: rgba(127,127,127,0.12);
+      border: 1px solid rgba(127,127,127,0.25);
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .note {
+      border-left: 4px solid #5a78ff;
+      background: rgba(90,120,255,0.08);
+      padding: 0.8rem 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+    ul, ol { padding-left: 1.5rem; }
+    .kbd {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border: 1px solid rgba(127,127,127,0.35);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      background: rgba(127,127,127,0.10);
+      font-family: ui-monospace, monospace;
+      font-size: 0.85em;
+    }
+    .footer { margin-top: 2rem; font-size: 0.9rem; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <h1>JBoss/WildFly Domain 模式部署错误解决指南</h1>
+  <div class="note">
+    <strong>错误提示：</strong> <code>run in domain mode but server group not defined</code><br>
+    <strong>根因：</strong> 以 <em>Domain</em> 模式部署时，没有明确指定要把应用分配到哪个 <em>Server Group</em>，因此没有实例可以接收部署。
+  </div>
+
+  <h2>一、使用 jboss-cli 指定部署到 Server Group（推荐）</h2>
+  <ol>
+    <li>确保 JBoss/WildFly 已以 <span class="kbd">domain.sh</span> / <span class="kbd">domain.bat</span> 启动，并且管理端口正常监听（默认 <code>9990</code>）。</li>
+    <li>连接管理接口：</li>
+  </ol>
+  <pre>$JBOSS_HOME/bin/jboss-cli.sh --connect</pre>
+  <ol start="3">
+    <li>部署到指定组：</li>
+  </ol>
+  <pre>deploy /path/to/your-app.war --server-groups=main-server-group</pre>
+  <p>更新部署：</p>
+  <pre>deploy /path/to/your-app.war --server-groups=main-server-group --force</pre>
+  <p>卸载部署：</p>
+  <pre>undeploy your-app.war --all-relevant-server-groups</pre>
+
+  <h2>二、使用 Maven 插件进行部署（wildfly-maven-plugin）</h2>
+  <p>适合在 Eclipse 里仅触发构建，真正的部署交给 Maven 插件完成：</p>
+  <pre>mvn package wildfly:deploy   -Dwildfly.hostname=127.0.0.1   -Dwildfly.port=9990   -Dwildfly.username=管理用户   -Dwildfly.password=管理密码   -Dwildfly.serverGroups=main-server-group</pre>
+  <p>要点：务必设置 <code>-Dwildfly.serverGroups</code>，并按需填写管理端口与凭据。</p>
+
+  <h2>三、Eclipse 通过远程 Domain 适配器发布</h2>
+  <ol>
+    <li>在 Eclipse 的 <em>Servers</em> 视图中新建 <strong>Remote (Domain) Server</strong>（JBoss/WildFly）。</li>
+    <li>填入远程管理地址、端口（默认 <code>9990</code>）、管理用户/密码。</li>
+    <li>在 <em>Server Groups / Assignments</em> 页面里，将你的模块（WAR/EAR）分配到 <code>main-server-group</code>。</li>
+    <li>之后即可使用 <em>Run on Server</em> 发布（本质还是通过管理接口下发部署）。</li>
+  </ol>
+
+  <h2>四、自检清单：domain.xml 与 host.xml 是否一致</h2>
+  <p>确保 <code>domain.xml</code> 中的 <code>server-group</code> 与 <code>host.xml</code> 中的 <code>server</code> 绑定一致：</p>
+  <pre>&lt;!-- domain.xml --&gt;
+&lt;server-groups&gt;
+  &lt;server-group name="main-server-group" profile="full"&gt;
+    &lt;socket-binding-group ref="full-sockets"/&gt;
+  &lt;/server-group&gt;
+&lt;/server-groups&gt;
+
+&lt;!-- host.xml --&gt;
+&lt;servers&gt;
+  &lt;server name="server-one" group="main-server-group"/&gt;
+  &lt;!-- 可按需添加更多实例，并指向同一或不同的组 --&gt;
+&lt;/servers&gt;</pre>
+  <ul>
+    <li><strong>名称一致：</strong> <code>server-group</code> 的 <code>name</code> 要与 <code>host.xml</code> 中 <code>server group="..."</code> 完全一致（含大小写、连字符）。</li>
+    <li><strong>Profile 存在：</strong> 组引用的 <code>profile</code> 必须在 <code>&lt;profiles&gt;</code> 中定义。</li>
+    <li><strong>至少一个实例：</strong> 该组下至少有一个 <code>server</code> 正在运行（<code>auto-start="true"</code> 或已手动启动）。</li>
+  </ul>
+
+  <h2>五、端口与权限</h2>
+  <ul>
+    <li>确认 CLI 连接到正确的管理地址/端口（默认 <code>9990</code>）。</li>
+    <li>确保已通过 <span class="kbd">add-user.sh</span> 添加 <strong>Management User</strong>（非 Application User）。</li>
+    <li>如为远程部署，防火墙需放行管理端口。</li>
+  </ul>
+
+  <h2>六、快速结论</h2>
+  <p>在 <strong>Domain 模式</strong>下，若出现 <code>run in domain mode but server group not defined</code>，说明部署动作未指定目标 Server Group。无论使用 CLI、Maven，还是 Eclipse 的远程 Domain 适配器，都应显式指定 <code>--server-groups=&lt;你的组名&gt;</code>，并保证该组下有实际运行的实例接收部署。</p>
+
+  <div class="footer">
+    <p>最后更新：2025-10-09</p>
+  </div>
+</body>
+</html>

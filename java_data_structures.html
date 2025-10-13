@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java常用数据结构用法手册</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        nav {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        nav h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        nav a {
+            display: inline-block;
+            padding: 8px 16px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 20px;
+            border: 2px solid #667eea;
+            transition: all 0.3s;
+        }
+        
+        nav a:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 50px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .section h3 {
+            color: #764ba2;
+            margin: 25px 0 15px 0;
+            font-size: 1.5em;
+        }
+        
+        .section h4 {
+            color: #555;
+            margin: 15px 0 10px 0;
+            font-size: 1.2em;
+        }
+        
+        .description {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 3px solid #764ba2;
+        }
+        
+        code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .method-list {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .method-list ul {
+            list-style-position: inside;
+            padding-left: 10px;
+        }
+        
+        .method-list li {
+            margin: 8px 0;
+            padding: 5px;
+        }
+        
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .note strong {
+            color: #856404;
+        }
+        
+        footer {
+            background: #2d2d2d;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        @media print {
+            body {
+                background: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>☕ Java常用数据结构用法手册</h1>
+            <p>完整的Java集合框架与数据结构使用指南</p>
+        </header>
+        
+        <nav>
+            <h3>📑 快速导航</h3>
+            <ul>
+                <li><a href="#list">List列表</a></li>
+                <li><a href="#set">Set集合</a></li>
+                <li><a href="#map">Map映射</a></li>
+                <li><a href="#queue">Queue队列</a></li>
+                <li><a href="#stack">Stack栈</a></li>
+                <li><a href="#array">数组</a></li>
+            </ul>
+        </nav>
+        
+        <div class="content">
+            <!-- List部分 -->
+            <div class="section" id="list">
+                <h2>📋 List - 列表接口</h2>
+                <div class="description">
+                    <p><strong>特点:</strong> 有序集合,允许重复元素,可通过索引访问</p>
+                </div>
+                
+                <h3>1. ArrayList</h3>
+                <div class="description">
+                    <p>基于动态数组实现,查询快,增删慢(中间位置)</p>
+                </div>
+                
+                <h4>创建与初始化</h4>
+<pre><code>// 创建ArrayList
+List&lt;String&gt; list = new ArrayList&lt;&gt;();
+List&lt;Integer&gt; numbers = new ArrayList&lt;&gt;(Arrays.asList(1, 2, 3, 4, 5));
+
+// 指定初始容量
+List&lt;String&gt; list2 = new ArrayList&lt;&gt;(100);</code></pre>
+
+                <h4>常用方法</h4>
+                <div class="method-list">
+                    <ul>
+                        <li><code>add(E e)</code> - 添加元素到末尾</li>
+                        <li><code>add(int index, E e)</code> - 在指定位置插入元素</li>
+                        <li><code>get(int index)</code> - 获取指定位置元素</li>
+                        <li><code>set(int index, E e)</code> - 修改指定位置元素</li>
+                        <li><code>remove(int index)</code> - 删除指定位置元素</li>
+                        <li><code>remove(Object o)</code> - 删除首个匹配元素</li>
+                        <li><code>size()</code> - 获取元素数量</li>
+                        <li><code>isEmpty()</code> - 判断是否为空</li>
+                        <li><code>contains(Object o)</code> - 判断是否包含元素</li>
+                        <li><code>clear()</code> - 清空列表</li>
+                    </ul>
+                </div>
+
+<pre><code>// 使用示例
+List&lt;String&gt; fruits = new ArrayList&lt;&gt;();
+fruits.add("苹果");
+fruits.add("香蕉");
+fruits.add(1, "橙子");  // 在索引1处插入
+String first = fruits.get(0);  // 获取第一个元素
+fruits.set(0, "梨");  // 修改第一个元素
+fruits.remove(2);  // 删除索引2的元素
+System.out.println(fruits.size());  // 输出: 2</code></pre>
+
+                <h3>2. LinkedList</h3>
+                <div class="description">
+                    <p>基于双向链表实现,增删快,查询慢</p>
+                </div>
+
+<pre><code>// 创建LinkedList
+LinkedList&lt;String&gt; linkedList = new LinkedList&lt;&gt;();
+
+// LinkedList特有方法
+linkedList.addFirst("第一个");  // 添加到开头
+linkedList.addLast("最后一个");   // 添加到末尾
+linkedList.removeFirst();  // 删除第一个
+linkedList.removeLast();   // 删除最后一个
+String first = linkedList.getFirst();  // 获取第一个
+String last = linkedList.getLast();    // 获取最后一个</code></pre>
+
+                <h3>3. Vector (不推荐,已过时)</h3>
+                <div class="description">
+                    <p>线程安全的ArrayList,但性能较差,建议使用Collections.synchronizedList()</p>
+                </div>
+
+                <div class="note">
+                    <strong>💡 选择建议:</strong> 默认使用ArrayList,频繁增删操作使用LinkedList
+                </div>
+            </div>
+
+            <!-- Set部分 -->
+            <div class="section" id="set">
+                <h2>🎯 Set - 集合接口</h2>
+                <div class="description">
+                    <p><strong>特点:</strong> 不允许重复元素,无序(HashSet)或有序(TreeSet)</p>
+                </div>
+
+                <h3>1. HashSet</h3>
+                <div class="description">
+                    <p>基于HashMap实现,无序,查询速度快O(1)</p>
+                </div>
+
+<pre><code>// 创建HashSet
+Set&lt;String&gt; set = new HashSet&lt;&gt;();
+set.add("Java");
+set.add("Python");
+set.add("Java");  // 重复元素不会被添加
+System.out.println(set.size());  // 输出: 2
+
+// 常用方法
+set.remove("Python");  // 删除元素
+boolean exists = set.contains("Java");  // 判断是否存在
+set.clear();  // 清空集合
+
+// 遍历
+for (String s : set) {
+    System.out.println(s);
+}</code></pre>
+
+                <h3>2. LinkedHashSet</h3>
+                <div class="description">
+                    <p>保持插入顺序的HashSet</p>
+                </div>
+
+<pre><code>Set&lt;String&gt; linkedSet = new LinkedHashSet&lt;&gt;();
+linkedSet.add("第一个");
+linkedSet.add("第二个");
+linkedSet.add("第三个");
+// 遍历时按插入顺序输出</code></pre>
+
+                <h3>3. TreeSet</h3>
+                <div class="description">
+                    <p>基于红黑树实现,元素自动排序,查询O(log n)</p>
+                </div>
+
+<pre><code>// 自然排序
+Set&lt;Integer&gt; treeSet = new TreeSet&lt;&gt;();
+treeSet.add(5);
+treeSet.add(1);
+treeSet.add(3);
+System.out.println(treeSet);  // 输出: [1, 3, 5]
+
+// 自定义排序
+Set&lt;String&gt; customSet = new TreeSet&lt;&gt;((a, b) -&gt; b.compareTo(a));
+customSet.add("Apple");
+customSet.add("Banana");
+customSet.add("Cherry");
+// 降序排列
+
+// TreeSet特有方法
+TreeSet&lt;Integer&gt; ts = new TreeSet&lt;&gt;(Arrays.asList(1, 3, 5, 7, 9));
+System.out.println(ts.first());  // 最小元素: 1
+System.out.println(ts.last());   // 最大元素: 9
+System.out.println(ts.lower(5)); // 小于5的最大元素: 3
+System.out.println(ts.higher(5)); // 大于5的最小元素: 7</code></pre>
+            </div>
+
+            <!-- Map部分 -->
+            <div class="section" id="map">
+                <h2>🗺️ Map - 映射接口</h2>
+                <div class="description">
+                    <p><strong>特点:</strong> 键值对存储,键唯一,值可重复</p>
+                </div>
+
+                <h3>1. HashMap</h3>
+                <div class="description">
+                    <p>最常用的Map实现,无序,允许null键和null值</p>
+                </div>
+
+<pre><code>// 创建HashMap
+Map&lt;String, Integer&gt; map = new HashMap&lt;&gt;();
+
+// 添加元素
+map.put("Alice", 25);
+map.put("Bob", 30);
+map.put("Charlie", 35);
+
+// 获取元素
+Integer age = map.get("Alice");  // 25
+Integer defaultAge = map.getOrDefault("David", 0);  // 0
+
+// 判断
+boolean hasKey = map.containsKey("Bob");  // true
+boolean hasValue = map.containsValue(30);  // true
+
+// 删除
+map.remove("Charlie");
+
+// 遍历方式1: 遍历键值对
+for (Map.Entry&lt;String, Integer&gt; entry : map.entrySet()) {
+    System.out.println(entry.getKey() + ": " + entry.getValue());
+}
+
+// 遍历方式2: 遍历键
+for (String key : map.keySet()) {
+    System.out.println(key + ": " + map.get(key));
+}
+
+// 遍历方式3: 遍历值
+for (Integer value : map.values()) {
+    System.out.println(value);
+}
+
+// Java 8 Lambda表达式
+map.forEach((k, v) -&gt; System.out.println(k + ": " + v));
+
+// 高级操作
+map.putIfAbsent("David", 28);  // 键不存在时才添加
+map.computeIfAbsent("Eve", k -&gt; k.length());  // 根据键计算值
+map.merge("Alice", 1, Integer::sum);  // 合并值</code></pre>
+
+                <h3>2. LinkedHashMap</h3>
+                <div class="description">
+                    <p>保持插入顺序或访问顺序的HashMap</p>
+                </div>
+
+<pre><code>// 插入顺序
+Map&lt;String, Integer&gt; linkedMap = new LinkedHashMap&lt;&gt;();
+linkedMap.put("C", 3);
+linkedMap.put("A", 1);
+linkedMap.put("B", 2);
+// 遍历时按C, A, B顺序
+
+// 访问顺序(LRU缓存)
+Map&lt;String, Integer&gt; lruMap = new LinkedHashMap&lt;&gt;(16, 0.75f, true);
+lruMap.put("A", 1);
+lruMap.put("B", 2);
+lruMap.get("A");  // 访问A,A移到最后</code></pre>
+
+                <h3>3. TreeMap</h3>
+                <div class="description">
+                    <p>基于红黑树,键自动排序</p>
+                </div>
+
+<pre><code>// 自然排序
+Map&lt;Integer, String&gt; treeMap = new TreeMap&lt;&gt;();
+treeMap.put(3, "Three");
+treeMap.put(1, "One");
+treeMap.put(2, "Two");
+System.out.println(treeMap);  // {1=One, 2=Two, 3=Three}
+
+// 自定义排序
+Map&lt;String, Integer&gt; customMap = new TreeMap&lt;&gt;((a, b) -&gt; b.compareTo(a));
+
+// TreeMap特有方法
+TreeMap&lt;Integer, String&gt; tm = new TreeMap&lt;&gt;();
+tm.put(1, "One");
+tm.put(3, "Three");
+tm.put(5, "Five");
+System.out.println(tm.firstKey());  // 1
+System.out.println(tm.lastKey());   // 5
+System.out.println(tm.lowerKey(3)); // 1
+System.out.println(tm.higherKey(3)); // 5</code></pre>
+
+                <h3>4. Hashtable (不推荐,已过时)</h3>
+                <div class="description">
+                    <p>线程安全的HashMap,不允许null,建议使用ConcurrentHashMap</p>
+                </div>
+            </div>
+
+            <!-- Queue部分 -->
+            <div class="section" id="queue">
+                <h2>📥 Queue - 队列接口</h2>
+                <div class="description">
+                    <p><strong>特点:</strong> 先进先出(FIFO),用于任务调度、广度优先搜索等</p>
+                </div>
+
+                <h3>1. LinkedList (作为Queue使用)</h3>
+<pre><code>Queue&lt;String&gt; queue = new LinkedList&lt;&gt;();
+
+// 添加元素
+queue.offer("第一个");  // 推荐使用
+queue.add("第二个");    // 队列满时抛异常
+
+// 获取并删除
+String head = queue.poll();  // 队列空时返回null
+String head2 = queue.remove();  // 队列空时抛异常
+
+// 获取不删除
+String peek = queue.peek();  // 队列空时返回null
+String element = queue.element();  // 队列空时抛异常</code></pre>
+
+                <h3>2. PriorityQueue (优先队列)</h3>
+                <div class="description">
+                    <p>基于堆实现,元素按优先级排序</p>
+                </div>
+
+<pre><code>// 默认最小堆
+PriorityQueue&lt;Integer&gt; pq = new PriorityQueue&lt;&gt;();
+pq.offer(5);
+pq.offer(1);
+pq.offer(3);
+System.out.println(pq.poll());  // 1 (最小值)
+
+// 最大堆
+PriorityQueue&lt;Integer&gt; maxHeap = new PriorityQueue&lt;&gt;((a, b) -&gt; b - a);
+maxHeap.offer(5);
+maxHeap.offer(1);
+maxHeap.offer(3);
+System.out.println(maxHeap.poll());  // 5 (最大值)
+
+// 自定义对象排序
+PriorityQueue&lt;Task&gt; taskQueue = new PriorityQueue&lt;&gt;(
+    (t1, t2) -&gt; t1.priority - t2.priority
+);</code></pre>
+
+                <h3>3. ArrayDeque (双端队列)</h3>
+                <div class="description">
+                    <p>比LinkedList更快的队列实现,也可作为栈使用</p>
+                </div>
+
+<pre><code>Deque&lt;String&gt; deque = new ArrayDeque&lt;&gt;();
+
+// 队列操作
+deque.offerFirst("头部");
+deque.offerLast("尾部");
+deque.pollFirst();
+deque.pollLast();
+
+// 栈操作
+deque.push("压栈");
+String pop = deque.pop();</code></pre>
+            </div>
+
+            <!-- Stack部分 -->
+            <div class="section" id="stack">
+                <h2>📚 Stack - 栈</h2>
+                <div class="description">
+                    <p><strong>特点:</strong> 后进先出(LIFO),用于递归、表达式求值等</p>
+                </div>
+
+<pre><code>// 方式1: 使用Stack类(不推荐,已过时)
+Stack&lt;Integer&gt; stack = new Stack&lt;&gt;();
+stack.push(1);
+stack.push(2);
+int top = stack.pop();  // 2
+int peek = stack.peek();  // 1
+boolean empty = stack.isEmpty();
+
+// 方式2: 使用Deque接口(推荐)
+Deque&lt;Integer&gt; stack2 = new ArrayDeque&lt;&gt;();
+stack2.push(1);
+stack2.push(2);
+int top2 = stack2.pop();
+int peek2 = stack2.peek();
+
+// 实际应用: 括号匹配
+public boolean isValid(String s) {
+    Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+    for (char c : s.toCharArray()) {
+        if (c == '(' || c == '[' || c == '{') {
+            stack.push(c);
+        } else {
+            if (stack.isEmpty()) return false;
+            char top = stack.pop();
+            if (c == ')' && top != '(') return false;
+            if (c == ']' && top != '[') return false;
+            if (c == '}' && top != '{') return false;
+        }
+    }
+    return stack.isEmpty();
+}</code></pre>
+            </div>
+
+            <!-- Array部分 -->
+            <div class="section" id="array">
+                <h2>📊 Array - 数组与Arrays工具类</h2>
+                
+                <h3>1. 数组基本操作</h3>
+<pre><code>// 声明与初始化
+int[] arr1 = new int[5];  // 默认值0
+int[] arr2 = {1, 2, 3, 4, 5};
+int[] arr3 = new int[]{1, 2, 3};
+
+// 二维数组
+int[][] matrix = new int[3][4];
+int[][] matrix2 = {{1, 2}, {3, 4}, {5, 6}};
+
+// 访问与修改
+arr1[0] = 10;
+int value = arr1[0];
+int length = arr1.length;
+
+// 遍历
+for (int i = 0; i < arr2.length; i++) {
+    System.out.println(arr2[i]);
+}
+
+for (int num : arr2) {
+    System.out.println(num);
+}</code></pre>
+
+                <h3>2. Arrays工具类</h3>
+                <div class="method-list">
+                    <ul>
+                        <li><code>Arrays.sort()</code> - 排序</li>
+                        <li><code>Arrays.binarySearch()</code> - 二分查找</li>
+                        <li><code>Arrays.fill()</code> - 填充</li>
+                        <li><code>Arrays.copyOf()</code> - 复制</li>
+                        <li><code>Arrays.equals()</code> - 比较</li>
+                        <li><code>Arrays.toString()</code> - 转字符串</li>
+                        <li><code>Arrays.asList()</code> - 转List</li>
+                    </ul>
+                </div>
+
+<pre><code>int[] arr = {5, 2, 8, 1, 9};
+
+// 排序
+Arrays.sort(arr);  // [1, 2, 5, 8, 9]
+
+// 部分排序
+Arrays.sort(arr, 0, 3);  // 只排序前3个元素
+
+// 二分查找(数组必须有序)
+int index = Arrays.binarySearch(arr, 5);
+
+// 填充
+int[] arr2 = new int[5];
+Arrays.fill(arr2, 10);  // [10, 10, 10, 10, 10]
+Arrays.fill(arr2, 1, 3, 20);  // 填充索引1-2
+
+// 复制
+int[] copy = Arrays.copyOf(arr, arr.length);
+int[] copy2 = Arrays.copyOfRange(arr, 1, 4);  // 复制索引1-3
+
+// 比较
+boolean equal = Arrays.equals(arr, copy);
+
+// 转字符串
+String str = Arrays.toString(arr);  // "[1, 2, 5, 8, 9]"
+
+// 转List
+List&lt;Integer&gt; list = Arrays.asList(1, 2, 3, 4, 5);
+// 注意: 返回的是固定大小的List,不能add/remove
+
+// 自定义排序
+Integer[] arr3 = {5, 2, 8, 1, 9};
+Arrays.sort(arr3, (a, b) -&gt; b - a);  // 降序
+
+// 多维数组操作
+int[][] matrix = {{1, 2}, {3, 4}};
+System.out.println(Arrays.deepToString(matrix));  // "[[1, 2], [3, 4]]"
+boolean equal2 = Arrays.deepEquals(matrix, matrix2);</code></pre>
+
+                <h3>3. 数组与集合转换</h3>
+<pre><code>// 数组转List
+String[] strArr = {"A", "B", "C"};
+List&lt;String&gt; list1 = Arrays.asList(strArr);
+List&lt;String&gt; list2 = new ArrayList&lt;&gt;(Arrays.asList(strArr));  // 可变
+
+// List转数组
+List&lt;String&gt; list = new ArrayList&lt;&gt;(Arrays.asList("A", "B", "C"));
+String[] arr4 = list.toArray(new String[0]);
+
+// 基本类型数组需要手动转换
+int[] intArr = {1, 2, 3};
+List&lt;Integer&gt; intList = new ArrayList&lt;&gt;();
+for (int num : intArr) {
+    intList.add(num);
+}
+
+// Java 8 Stream方式
+List&lt;Integer&gt; intList2 = Arrays.stream(intArr).boxed()
+    .collect(Collectors.toList());</code></pre>
+            </div>
+
+            <!-- 性能比较 -->
+            <div class="section">
+                <h2>⚡ 性能比较与选择建议</h2>
+                
+                <h3>时间复杂度对比</h3>
+                <table style="width:100%; border-collapse: collapse; background: white;">
+                    <tr style="background: #667eea; color: white;">
+                        <th style="padding: 12px; border: 1px solid #ddd;">数据结构</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">添加</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">删除</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">查询</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">特点</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #ddd;">ArrayList</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)末尾/O(n)中间</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(n)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">随机访问快</td>
+                    </tr>
+                    <tr style="background: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #ddd;">LinkedList</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(n)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">增删快</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #ddd;">HashSet</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(1)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">无序唯一</td>
+                    </tr>
+                    <tr style="background: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #ddd;">TreeSet</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(log n)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(log n)</td>
+                        <td style="padding: 10px; border: 1px solid #ddd;">O(log n)</td>

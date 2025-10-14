@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jakarta Batch 查询和数据插入指南</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 50px;
+        }
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        .subsection {
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .subsection h3 {
+            color: #764ba2;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+        code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        .code-block code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+        }
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            color: #856404;
+        }
+        .tip {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            color: #0c5460;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        table td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        table tr:hover {
+            background: #f5f5f5;
+        }
+        .highlight {
+            background: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #ddd;
+        }
+        .example-title {
+            font-weight: bold;
+            color: #764ba2;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Jakarta Batch 查询和数据操作完全指南</h1>
+            <p>涵盖 @NamedQuery、@NamedNativeQuery、参数查询、多表联合、数据插入等常用方法</p>
+        </header>
+
+        <div class="content">
+            <!-- 第一部分：基础概念 -->
+            <div class="section">
+                <h2>📚 第一部分：基础概念</h2>
+                
+                <div class="subsection">
+                    <h3>什么是 @NamedQuery 和 @NamedNativeQuery？</h3>
+                    <div class="description">
+                        <strong>@NamedQuery：</strong> 使用 JPQL（Java Persistence Query Language）编写的命名查询，提供类型安全和编译时检查。
+                        <br><br>
+                        <strong>@NamedNativeQuery：</strong> 使用原生 SQL 编写的命名查询，具有更高的性能和灵活性。
+                        <br><br>
+                        两者都在实体类上定义，在 Batch 处理中可以显著提升效率。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第二部分：实体定义 -->
+            <div class="section">
+                <h2>🏗️ 第二部分：实体定义和基础查询</h2>
+                
+                <div class="subsection">
+                    <h3>1. 定义基础实体类</h3>
+                    <div class="description">以下是一个包含各种查询注解的完整实体定义：</div>
+                    <div class="code-block"><code>import jakarta.persistence.*;
+
+@Entity
+@Table(name = "users")
+@NamedQuery(
+    name = "User.findAll",
+    query = "SELECT u FROM User u"
+)
+@NamedQuery(
+    name = "User.findById",
+    query = "SELECT u FROM User u WHERE u.id = :id"
+)
+@NamedQuery(
+    name = "User.findByName",
+    query = "SELECT u FROM User u WHERE u.name LIKE :name"
+)
+@NamedQuery(
+    name = "User.findByAge",
+    query = "SELECT u FROM User u WHERE u.age > :age ORDER BY u.age DESC"
+)
+@NamedQuery(
+    name = "User.countAll",
+    query = "SELECT COUNT(u) FROM User u"
+)
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(unique = true)
+    private String email;
+    
+    private Integer age;
+    
+    @Column(name = "create_time")
+    private LocalDateTime createTime;
+    
+    // Getters and Setters...
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>2. 原生 SQL 查询定义</h3>
+                    <div class="description">使用 @NamedNativeQuery 执行原生 SQL：</div>
+                    <div class="code-block"><code>@Entity
+@Table(name = "users")
+@NamedNativeQuery(
+    name = "User.findAllNative",
+    query = "SELECT * FROM users",
+    resultClass = User.class
+)
+@NamedNativeQuery(
+    name = "User.findActiveUsers",
+    query = "SELECT * FROM users WHERE age > :minAge AND status = 'ACTIVE'",
+    resultClass = User.class
+)
+public class User {
+    // 字段定义...
+}</code></div>
+                </div>
+            </div>
+
+            <!-- 第三部分：参数查询 -->
+            <div class="section">
+                <h2>🔍 第三部分：参数查询（重点）</h2>
+                
+                <div class="subsection">
+                    <h3>1. 单参数查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.findByEmail",
+    query = "SELECT u FROM User u WHERE u.email = :email"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;User&gt; query = em.createNamedQuery("User.findByEmail", User.class);
+query.setParameter("email", "user@example.com");
+User user = query.getSingleResult();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>2. 多参数查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.findByAgeRange",
+    query = "SELECT u FROM User u WHERE u.age BETWEEN :minAge AND :maxAge ORDER BY u.age"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;User&gt; query = em.createNamedQuery("User.findByAgeRange", User.class);
+query.setParameter("minAge", 20);
+query.setParameter("maxAge", 50);
+List&lt;User&gt; users = query.getResultList();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>3. IN 子句查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.findByIds",
+    query = "SELECT u FROM User u WHERE u.id IN (:ids)"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+List&lt;Long&gt; userIds = Arrays.asList(1L, 2L, 3L, 4L, 5L);
+TypedQuery&lt;User&gt; query = em.createNamedQuery("User.findByIds", User.class);
+query.setParameter("ids", userIds);
+List&lt;User&gt; users = query.getResultList();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>4. LIKE 模糊查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.searchByName",
+    query = "SELECT u FROM User u WHERE u.name LIKE :searchName"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;User&gt; query = em.createNamedQuery("User.searchByName", User.class);
+query.setParameter("searchName", "%John%");
+List&lt;User&gt; users = query.getResultList();</code></div>
+                </div>
+            </div>
+
+            <!-- 第四部分：多表联合查询 -->
+            <div class="section">
+                <h2>🔗 第四部分：多表联合查询</h2>
+                
+                <div class="subsection">
+                    <h3>1. 定义相关实体</h3>
+                    <div class="code-block"><code>// 部门实体
+@Entity
+@Table(name = "departments")
+public class Department {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL)
+    private List&lt;User&gt; users = new ArrayList&lt;&gt;();
+    
+    // Getters and Setters...
+}
+
+// 用户实体
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;
+    
+    // Getters and Setters...
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>2. INNER JOIN 查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.findByDepartment",
+    query = "SELECT u FROM User u " +
+            "INNER JOIN u.department d " +
+            "WHERE d.id = :departmentId"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;User&gt; query = em.createNamedQuery("User.findByDepartment", User.class);
+query.setParameter("departmentId", 1L);
+List&lt;User&gt; users = query.getResultList();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>3. LEFT JOIN 查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "Department.findWithUsers",
+    query = "SELECT d FROM Department d " +
+            "LEFT JOIN FETCH d.users u " +
+            "WHERE d.id = :departmentId"
+)
+public class Department {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;Department&gt; query = em.createNamedQuery("Department.findWithUsers", Department.class);
+query.setParameter("departmentId", 1L);
+Department dept = query.getSingleResult();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>4. 复杂多表查询（DTO 投影）</h3>
+                    <div class="code-block"><code>// 创建 DTO 类
+public class UserDepartmentDTO {
+    private String userName;
+    private String departmentName;
+    private Integer age;
+    
+    public UserDepartmentDTO(String userName, String departmentName, Integer age) {
+        this.userName = userName;
+        this.departmentName = departmentName;
+        this.age = age;
+    }
+    
+    // Getters...
+}
+
+// 定义查询
+@NamedQuery(
+    name = "User.findUserWithDepartmentDTO",
+    query = "SELECT NEW com.example.dto.UserDepartmentDTO(" +
+            "u.name, d.name, u.age) " +
+            "FROM User u " +
+            "INNER JOIN u.department d " +
+            "WHERE u.age > :minAge"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;UserDepartmentDTO&gt; query = 
+    em.createNamedQuery("User.findUserWithDepartmentDTO", UserDepartmentDTO.class);
+query.setParameter("minAge", 25);
+List&lt;UserDepartmentDTO&gt; results = query.getResultList();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>5. 原生 SQL 多表查询</h3>
+                    <div class="code-block"><code>@NamedNativeQuery(
+    name = "User.findByDepartmentNative",
+    query = "SELECT u.id, u.name, u.email, u.age, u.department_id " +
+            "FROM users u " +
+            "INNER JOIN departments d ON u.department_id = d.id " +
+            "WHERE d.id = :departmentId",
+    resultClass = User.class
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;User&gt; query = em.createNamedQuery("User.findByDepartmentNative", User.class);
+query.setParameter("departmentId", 1L);
+List&lt;User&gt; users = query.getResultList();</code></div>
+                </div>
+            </div>
+
+            <!-- 第五部分：数据插入 -->
+            <div class="section">
+                <h2>📝 第五部分：数据插入方法</h2>
+                
+                <div class="subsection">
+                    <h3>1. 单条插入</h3>
+                    <div class="code-block"><code>User user = new User();
+user.setName("张三");
+user.setEmail("zhangsan@example.com");
+user.setAge(30);
+user.setCreateTime(LocalDateTime.now());
+
+EntityManager em = // 获取 EntityManager
+EntityTransaction tx = em.getTransaction();
+tx.begin();
+try {
+    em.persist(user);
+    tx.commit();
+} catch (Exception e) {
+    tx.rollback();
+    throw e;
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>2. 批量插入（标准方式）</h3>
+                    <div class="code-block"><code>EntityManager em = // 获取 EntityManager
+EntityTransaction tx = em.getTransaction();
+tx.begin();
+try {
+    for (int i = 0; i &lt; 1000; i++) {
+        User user = new User();
+        user.setName("用户" + i);
+        user.setEmail("user" + i + "@example.com");
+        user.setAge(20 + (i % 40));
+        user.setCreateTime(LocalDateTime.now());
+        
+        em.persist(user);
+        
+        // 每 100 条提交一次
+        if ((i + 1) % 100 == 0) {
+            em.flush();
+            em.clear();
+        }
+    }
+    tx.commit();
+} catch (Exception e) {
+    tx.rollback();
+    throw e;
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>3. 使用原生 SQL 批量插入（高性能）</h3>
+                    <div class="code-block"><code>EntityManager em = // 获取 EntityManager
+EntityTransaction tx = em.getTransaction();
+tx.begin();
+try {
+    String sql = "INSERT INTO users (name, email, age, create_time) VALUES (?, ?, ?, ?)";
+    Query query = em.createNativeQuery(sql);
+    
+    for (int i = 0; i &lt; 10000; i++) {
+        query.setParameter(1, "用户" + i);
+        query.setParameter(2, "user" + i + "@example.com");
+        query.setParameter(3, 20 + (i % 40));
+        query.setParameter(4, LocalDateTime.now());
+        
+        query.executeUpdate();
+        
+        if ((i + 1) % 500 == 0) {
+            em.flush();
+            em.clear();
+        }
+    }
+    tx.commit();
+} catch (Exception e) {
+    tx.rollback();
+    throw e;
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>4. 与关联实体一起插入</h3>
+                    <div class="code-block"><code>EntityManager em = // 获取 EntityManager
+EntityTransaction tx = em.getTransaction();
+tx.begin();
+try {
+    // 先获取或创建部门
+    Department department = em.find(Department.class, 1L);
+    if (department == null) {
+        department = new Department();
+        department.setName("技术部");
+        em.persist(department);
+    }
+    
+    // 创建用户并关联部门
+    User user = new User();
+    user.setName("李四");
+    user.setEmail("lisi@example.com");
+    user.setAge(28);
+    user.setCreateTime(LocalDateTime.now());
+    user.setDepartment(department);
+    
+    em.persist(user);
+    tx.commit();
+} catch (Exception e) {
+    tx.rollback();
+    throw e;
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>5. 批量插入关联数据</h3>
+                    <div class="code-block"><code>EntityManager em = // 获取 EntityManager
+EntityTransaction tx = em.getTransaction();
+tx.begin();
+try {
+    Department department = em.find(Department.class, 1L);
+    
+    for (int i = 0; i &lt; 500; i++) {
+        User user = new User();
+        user.setName("员工" + i);
+        user.setEmail("emp" + i + "@example.com");
+        user.setAge(20 + (i % 45));
+        user.setCreateTime(LocalDateTime.now());
+        user.setDepartment(department);
+        
+        em.persist(user);
+        
+        if ((i + 1) % 50 == 0) {
+            em.flush();
+            em.clear();
+            // 重新关联 department，因为 clear() 会清空持久化上下文
+            department = em.find(Department.class, 1L);
+        }
+    }
+    tx.commit();
+} catch (Exception e) {
+    tx.rollback();
+    throw e;
+}</code></div>
+                </div>
+            </div>
+
+            <!-- 第六部分：Batch 处理中的应用 -->
+            <div class="section">
+                <h2>⚙️ 第六部分：Jakarta Batch 中的应用</h2>
+                
+                <div class="subsection">
+                    <h3>1. 读取数据的 ItemReader</h3>
+                    <div class="code-block"><code>import jakarta.batch.api.chunk.ItemReader;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
+
+public class UserItemReader extends ItemReader {
+    private EntityManager em;
+    private TypedQuery&lt;User&gt; query;
+    private List&lt;User&gt; items;
+    private int index = 0;
+    
+    @Override
+    public void open(Serializable checkpoint) throws Exception {
+        em = // 获取 EntityManager
+        query = em.createNamedQuery("User.findAll", User.class);
+        query.setFirstResult(0);
+        query.setMaxResults(100); // 分页读取
+        items = query.getResultList();
+    }
+    
+    @Override
+    public User readItem() throws Exception {
+        if (index &lt; items.size()) {
+            return items.get(index++);
+        }
+        return null;
+    }
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>2. 处理数据的 ItemProcessor</h3>
+                    <div class="code-block"><code>import jakarta.batch.api.chunk.ItemProcessor;
+
+public class UserItemProcessor extends ItemProcessor {
+    
+    @Override
+    public User processItem(User user) throws Exception {
+        // 处理数据逻辑
+        user.setAge(user.getAge() + 1);
+        user.setUpdateTime(LocalDateTime.now());
+        return user;
+    }
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>3. 写入数据的 ItemWriter</h3>
+                    <div class="code-block"><code>import jakarta.batch.api.chunk.ItemWriter;
+import jakarta.persistence.EntityManager;
+import java.util.List;
+
+public class UserItemWriter extends ItemWriter {
+    private EntityManager em;
+    
+    @Override
+    public void writeItems(List&lt;Object&gt; items) throws Exception {
+        em = // 获取 EntityManager
+        EntityTransaction tx = em.getTransaction();
+        tx.begin();
+        try {
+            for (Object item : items) {
+                User user = (User) item;
+                em.merge(user); // 更新
+                // 或 em.persist(user); // 插入
+            }
+            em.flush();
+            tx.commit();
+        } catch (Exception e) {
+            tx.rollback();
+            throw e;
+        }
+    }
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>4. 完整的 Batch Job 配置</h3>
+                    <div class="code-block"><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;job id="userProcessJob" xmlns="http://xmlns.jcp.org/xml/ns/javaee"&gt;
+    &lt;step id="userStep"&gt;
+        &lt;chunk item-count="100" skip-limit="10" retry-limit="3"&gt;
+            &lt;reader ref="userItemReader"&gt;&lt;/reader&gt;
+            &lt;processor ref="userItemProcessor"&gt;&lt;/processor&gt;
+            &lt;writer ref="userItemWriter"&gt;&lt;/writer&gt;
+        &lt;/chunk&gt;
+    &lt;/step&gt;
+&lt;/job&gt;</code></div>
+                </div>
+            </div>
+
+            <!-- 第七部分：高级技巧 -->
+            <div class="section">
+                <h2>💡 第七部分：高级技巧和最佳实践</h2>
+                
+                <div class="subsection">
+                    <h3>1. 分页查询优化</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.findAllWithPagination",
+    query = "SELECT u FROM User u ORDER BY u.id"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+public List&lt;User&gt; findPagedUsers(int pageNo, int pageSize) {
+    TypedQuery&lt;User&gt; query = em.createNamedQuery("User.findAllWithPagination", User.class);
+    query.setFirstResult((pageNo - 1) * pageSize);
+    query.setMaxResults(pageSize);
+    return query.getResultList();
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>2. 聚合函数查询</h3>
+                    <div class="code-block"><code>@NamedQuery(
+    name = "User.countByDepartment",
+    query = "SELECT COUNT(u) FROM User u WHERE u.department.id = :departmentId"
+)
+@NamedQuery(
+    name = "User.averageAge",
+    query = "SELECT AVG(u.age) FROM User u"
+)
+@NamedQuery(
+    name = "User.groupByDepartment",
+    query = "SELECT d.name, COUNT(u) FROM User u " +
+            "GROUP BY d.id, d.name " +
+            "HAVING COUNT(u) > :minCount"
+)
+public class User {
+    // ...
+}
+
+// 使用方式
+TypedQuery&lt;Long&gt; countQuery = em.createNamedQuery("User.countByDepartment", Long.class);
+countQuery.setParameter("departmentId", 1L);
+Long count = countQuery.getSingleResult();</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>3. 条件动态查询</h3>
+                    <div class="code-block"><code>public List&lt;User&gt; findUsersWithCriteria(String name, Integer minAge, Long departmentId) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery&lt;User&gt; cq = cb.createQuery(User.class);
+    Root&lt;User&gt; root = cq.from(User.class);
+    
+    List&lt;Predicate&gt; predicates = new ArrayList&lt;&gt;();
+    
+    if (name != null &amp;&amp; !name.isEmpty()) {
+        predicates.add(cb.like(root.get("name"), "%" + name + "%"));
+    }
+    
+    if (minAge != null) {
+        predicates.add(cb.ge(root.get("age"), minAge));
+    }
+    
+    if (departmentId != null) {
+        predicates.add(cb.equal(root.get("department").get("id"), departmentId));
+    }
+    
+    cq.where(cb.and(predicates.toArray(new Predicate[0])));
+    
+    return em.createQuery(cq).getResultList();
+}</code></div>
+                </div>
+
+                <div class="subsection">
+                    <h3>4. 更新和删除操作</h3>
+                    <div class="code-block"><code>// 批量更新
+public int updateUserAge(Long departmentId, Integer newAge) {
+    Query query = em.createQuery(
+        "UPDATE User u SET u.age = :newAge " +
+        "WHERE u.department.id = :departmentId"
+    );
+    query.setParameter("newAge", newAge);
+    query.setParameter("departmentId", departmentId);
+    return query.executeUpdate();
+}
+
+// 批量删除
+public int deleteInactiveUsers(LocalDateTime beforeDate) {
+    Query query = em.createQuery(
+        "DELETE FROM User u WHERE u.createTime &lt; :beforeDate"
+    );
+    query.setParameter("beforeDate", beforeDate);
+    return query.executeUpdate();
+}</code></div>
+                </div>
+            </div>
+
+            <!-- 第八部分：常见问题 -->
+            <div class="section">
+                <h2>❓ 第八部分：常见问题和解决方案</h2>
+                
+                <div class="subsection">
+                    <h3>问题1：批量插入时内存溢出？</h3>
+                    <div class="description">
+                        <strong>原因：</strong> 持久化上下文中积累了过多对象。
+                        <br

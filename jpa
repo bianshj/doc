@@ -1,0 +1,84 @@
+
+⸻
+
+まずは原因切り分けチェックリスト（重要度順）
+	1.	サービスBeanが本当に“プロキシ化”されているか
+
+	•	サービス側は CDI/EJB 管理Beanになっていますか？（例：@ApplicationScoped/@Dependent/@Stateless）
+	•	そのメソッドは public かつ final ではない か？（final/private はインターセプト不可の実装があります）
+	•	呼び出しは 注入した Bean 経由（プロキシ経由）になっていますか？（@Inject Services svc; svc.method();）
+	•	this.method() は厳禁。
+	•	確認ログ：System.out.println(svc.getClass()); → ...$Proxy や ...WeldSubclass などが出ればOK。
+
+	2.	PU/データソースが JTA になっているか
+
+	•	persistence.xml が transaction-type="JTA" で、<jta-data-source> を使っているか（<non-jta-data-source> はNG）。
+	•	アプリサーバの DataSource が JTA 管理か（WildFly なら jta=true、Payara なら JDBC リソースが JTA 管理のもの）。
+	•	Resource-local（非JTA）の EntityManager を使っていると、@Transactional はトランザクションを制御できません。
+
+	3.	トランザクション属性のミスマッチがないか
+
+	•	サービスメソッドは @Transactional(REQUIRES_NEW)（jakarta.transaction.Transactional）をメソッドに明示。
+（クラスに付けると実装/バージョン差で拾われないことがある）
+	•	外側で UserTransaction（BMT） を開始していませんか？ CMT（@Transactional）とBMTの混在は挙動が変わります。まずBMTは使わないで検証を。
+
+	4.	例外とロールバック規則
+
+	•	REQUIRES_NEW メソッド内で未捕捉の RuntimeException が出ると、その内側の新Txだけがロールバックします。
+正常にリターンしているか（ログで到達確認）を見てください。
+	•	外側で例外が出ても、内側はコミット済みのはず。
+ただし同一接続/セッションで直後に読むとロックや可視性で見えないことがあります（次項）。
+
+	5.	“直後に読んでも見えない/ブロックする”の正体
+
+	•	同一トランザクション（外側）・同一EM/同一コネクションから読むと、未コミット/ロックの影響を受けます。
+コミット済みを確認するには、別の EntityManager/別コネクション（＝別Tx）で読み直してください。
+	•	DBの分離レベル（SQL Server 既定の READ COMMITTED など）により、書き込みロックに対して SELECT がブロックすることがあります。
+検証は別スレッド/別PU/別DSで行うのが確実です。
+
+⸻
+
+“本当に REQUIRES_NEW が効いているか”を可視化する最小コード
+
+トランザクションキーをログに出す：（WildFly/Payara 等で有効）
+
+import jakarta.annotation.Resource;
+import jakarta.transaction.TransactionSynchronizationRegistry;
+
+@ApplicationScoped
+public class TxProbe {
+  @Resource
+  TransactionSynchronizationRegistry tsr;
+
+  public Object key() { return tsr.getTransactionKey(); } // Tx毎に異なるキー
+}
+
+
+@Inject TxProbe probe;
+@Inject LogService logService; // @Transactional(REQUIRES_NEW) を付けたサービス
+
+@Transactional // 外側Tx（REQUIRED）
+public String process() {
+  System.out.println("outer key = " + probe.key()); // 例: X1
+
+  logService.writeLogRequiresNew(() -> {
+    System.out.println("inner key = " + probe.key()); // 例: X2（X1と異なるはず）
+  });
+
+  // 故意に失敗させて外側Txをロールバック
+  throw new RuntimeException("fail after inner");
+}
+
+@ApplicationScoped
+public class LogService {
+  @Inject TxProbe probe;
+  @PersistenceContext EntityManager em;
+
+  @Transactional(jakarta.transaction.Transactional.TxType.REQUIRES_NEW)
+  public void writeLogRequiresNew(Runnable beforeCommitEcho) {
+    System.out.println("REQUIRES_NEW key = " + probe.key()); // X2
+    beforeCommitEcho.run(); // ここでも X2 が出る
+    em.persist(new AppLog(...)); // ここで内側Txにフラッシュ
+    // メソッドreturn時に内側Txコミット
+  }
+}

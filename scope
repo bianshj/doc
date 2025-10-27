@@ -1,0 +1,136 @@
+// 保存你需要的状态
+public class BatchState implements java.io.Serializable {
+    private long lastProcessedId;
+    private String marker;
+    // getters/setters ...
+}
+
+import jakarta.enterprise.context.ApplicationScoped;
+import java.util.concurrent.ConcurrentHashMap;
+
+// 进程内全局仓库（不跨进程）
+@ApplicationScoped
+public class InMemoryBatchStateStore {
+    // 用 JobInstanceId 或 JobExecutionId 做 key 都可
+    private final ConcurrentHashMap<Long, BatchState> byJobInstance = new ConcurrentHashMap<>();
+
+    public BatchState getOrCreate(long jobInstanceId) {
+        return byJobInstance.computeIfAbsent(jobInstanceId, id -> new BatchState());
+    }
+
+    public BatchState get(long jobInstanceId) {
+        return byJobInstance.get(jobInstanceId);
+    }
+
+    public void put(long jobInstanceId, BatchState state) {
+        byJobInstance.put(jobInstanceId, state);
+    }
+
+    public void remove(long jobInstanceId) {
+        byJobInstance.remove(jobInstanceId);
+    }
+}
+
+import jakarta.batch.api.Batchlet;
+import jakarta.batch.runtime.JobExecution;
+import jakarta.batch.runtime.JobInstance;
+import jakarta.batch.runtime.context.JobContext;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+
+@Named
+public class MyBatchlet implements Batchlet {
+
+    @Inject
+    private JobContext jobCtx; // 可拿到 executionId / instanceId
+
+    @Inject
+    private InMemoryBatchStateStore store;
+
+    @Override
+    public String process() throws Exception {
+        long instanceId = jobCtx.getJobInstance().getInstanceId();
+        BatchState state = store.getOrCreate(instanceId);
+
+        // —— 读出上次的内存状态（如果有的话，说明上次跑到这步并且 JVM 未重启）
+        long cursor = state.getLastProcessedId();
+
+        // 你的业务循环
+        while (true) {
+            var next = fetchNextAfter(cursor);
+            if (next == null) break;
+
+            // 处理
+            handle(next);
+
+            // 更新内存状态（立刻更新到全局 Map）
+            cursor = next.getId();
+            state.setLastProcessedId(cursor);
+            store.put(instanceId, state);
+
+            // 可选：根据外部信号优雅停止（等待 restart）
+            if (shouldStop()) {
+                // 返回 "STOPPED" 之类的 ExitStatus，方便运维识别
+                jobCtx.setExitStatus("STOPPED_AT_" + cursor);
+                return "STOPPED";
+            }
+        }
+
+        // 清理（完成后把状态移除，避免内存泄漏）
+        store.remove(instanceId);
+        jobCtx.setExitStatus("COMPLETED_AT_" + cursor);
+        return "COMPLETED";
+    }
+
+    @Override
+    public void stop() throws Exception {
+        // 容器要求停止时，这里通常只设置一个标志位（略）
+        // 注意：不要在这里清理状态，以便 restart 能取回
+    }
+
+    // —— 伪代码：按游标取下一条
+    private Record fetchNextAfter(long id) { /* ... */ return null; }
+
+    private void handle(Record r) { /* ... */ }
+
+    private boolean shouldStop() { /* ... */ return false; }
+}
+你必须用 JobOperator.restart(previousExecutionId)（即“重启”同一个 JobInstance）。
+	•	上面的实现用 jobCtx.getJobInstance().getInstanceId() 作为状态键。只要 JVM 没重启、并且你是对同一个 JobInstance 重启，就能从 InMemoryBatchStateStore 里拿回旧状态。
+
+⸻
+
+关键注意点
+	1.	这不具备可靠性
+
+	•	仅当 同一 JVM 仍存活 时有效。进程/容器重启、滚动发布、扩容到另外节点，状态就没了。
+	•	集群/多实例时更不安全：不同实例上看不到彼此内存。
+
+	2.	选择用什么作为 Key
+
+	•	JobInstanceId：同一个 jobName + 相同参数创建的实例固定不变；对 restart(executionId) 很友好。
+	•	JobExecutionId：每次 start/restart 都变；则要把“前一执行”的状态迁移到“后一执行”的 key，略麻烦。
+	•	推荐：用 JobInstanceId。
+
+	3.	何时清理
+
+	•	成功 COMPLETED 后 remove(instanceId)，避免内存增长。
+	•	如果被 STOP/FAIL，先保留，留待 restart 取回；在下一次真正 COMPLETED 再清。
+
+	4.	并发/重入
+
+	•	若允许同一 JobInstance 并发执行多个 JobExecution，要自己加锁（比如 ReentrantLock by instanceId）避免并发写同一状态。
+
+	5.	更强需求
+
+	•	若你未来可能需要跨 JVM、跨重启恢复，请改为外部可用但“非持久磁盘”的内存存储：如 Redis（内存但可选 AOF）、Hazelcast、Infinispan 等。代码结构不变，只把 InMemoryBatchStateStore 的 Map 换成外部缓存即可。
+
+⸻
+
+为什么不用 StepContext？
+	•	在 Batchlet 中没有 checkpoint，因此 StepContext.setPersistentUserData() 不会被写入 Repository；setTransientUserData() 仅在当前执行的内存有效，一旦退出/重启就丢失。
+	•	上面给的“内存仓库”就是显式地提供你想要的“进程内跨执行缓存”。
+
+⸻
+
+如果你给我现在的 Batchlet 类名/包名、是否会在多实例上跑、是否走 restart(executionId)，我可以把上面的模板直接改造成你的项目可用的落地版。

@@ -1,0 +1,131 @@
+// BaseStatefulBatchlet.java
+// Example: Generic Base Batchlet with Checkpoint persistence capability
+// Jakarta Batch + Generic Service + Custom Checkpoint Store
+
+package batch.base;
+
+import jakarta.batch.api.AbstractBatchlet;
+import jakarta.batch.runtime.context.JobContext;
+import jakarta.batch.runtime.context.StepContext;
+import jakarta.inject.Inject;
+
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+/** ---------- Common Interfaces ---------- **/
+
+public interface CheckpointInfo {
+    default int version() { return 1; }
+}
+
+public interface BatchService<T extends CheckpointInfo> {
+    void run(T checkpoint, Consumer<T> onProgress, AtomicBoolean stopFlag) throws Exception;
+}
+
+public interface CheckpointStore<T extends CheckpointInfo> {
+    Optional<T> load(String key);
+    void save(String key, T checkpoint);
+    void delete(String key);
+}
+
+/** ---------- In-memory CheckpointStore Implementation ---------- **/
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+
+public class InMemoryCheckpointStore<T extends CheckpointInfo> implements CheckpointStore<T> {
+    private final Map<String, T> map = new ConcurrentHashMap<>();
+    public Optional<T> load(String key) { return Optional.ofNullable(map.get(key)); }
+    public void save(String key, T checkpoint) { map.put(key, checkpoint); }
+    public void delete(String key) { map.remove(key); }
+}
+
+/** ---------- Base Stateful Batchlet ---------- **/
+
+public abstract class BaseStatefulBatchlet<T extends CheckpointInfo> extends AbstractBatchlet {
+
+    @Inject protected JobContext jobCtx;
+    @Inject protected StepContext stepCtx;
+
+    private final BatchService<? super T> service;
+    private final CheckpointStore<T> store;
+    private final Supplier<T> checkpointFactory;
+    private final AtomicBoolean stopFlag = new AtomicBoolean(false);
+
+    protected BaseStatefulBatchlet(BatchService<? super T> service,
+                                   CheckpointStore<T> store,
+                                   Supplier<T> checkpointFactory) {
+        this.service = service;
+        this.store = store;
+        this.checkpointFactory = checkpointFactory;
+    }
+
+    protected String checkpointKey() {
+        String job = jobCtx != null ? jobCtx.getJobName() : "unknownJob";
+        String step = stepCtx != null ? stepCtx.getStepName() : "unknownStep";
+        return job + "::" + step;
+    }
+
+    protected T loadOrInitCheckpoint() {
+        Optional<T> cp = store.load(checkpointKey());
+        return cp.orElseGet(checkpointFactory);
+    }
+
+    protected void saveCheckpoint(T checkpoint) {
+        store.save(checkpointKey(), checkpoint);
+    }
+
+    protected void clearCheckpoint() {
+        store.delete(checkpointKey());
+    }
+
+    @Override
+    public String process() throws Exception {
+        T checkpoint = loadOrInitCheckpoint();
+        service.run(checkpoint, this::saveCheckpoint, stopFlag);
+        clearCheckpoint();
+        if (stepCtx != null) stepCtx.setExitStatus("COMPLETED");
+        return "COMPLETED";
+    }
+
+    @Override
+    public void stop() throws Exception {
+        stopFlag.set(true);
+    }
+}
+
+/** ---------- Example Implementation ---------- **/
+
+import jakarta.inject.Named;
+
+public class PageCheckpoint implements CheckpointInfo {
+    public int page = 0;
+    public int pageSize = 500;
+}
+
+public class PagingService implements BatchService<PageCheckpoint> {
+    public void run(PageCheckpoint cp, Consumer<PageCheckpoint> onProgress, AtomicBoolean stopFlag) throws Exception {
+        while (!stopFlag.get()) {
+            processOnePage(cp.page, cp.pageSize);
+            cp.page++;
+            onProgress.accept(cp);
+            if (!hasMore(cp.page)) break;
+        }
+    }
+
+    private void processOnePage(int page, int pageSize) {
+        System.out.println("Processing page " + page);
+    }
+    private boolean hasMore(int page) {
+        return page < 5;
+    }
+}
+
+@Named("PagingBatchlet")
+public class PagingBatchlet extends BaseStatefulBatchlet<PageCheckpoint> {
+    public PagingBatchlet() {
+        super(new PagingService(), new InMemoryCheckpointStore<>(), PageCheckpoint::new);
+    }
+}

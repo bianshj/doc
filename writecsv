@@ -1,0 +1,189 @@
+package app.batch;
+
+import jakarta.batch.api.BatchProperty;
+import jakarta.batch.api.chunk.ItemWriter;
+import jakarta.enterprise.context.Dependent;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+
+@Dependent
+@Named("CsvFileWriter")
+public class CsvFileWriter implements ItemWriter {
+    @Inject @BatchProperty(name = "output")
+    String output;
+
+    @Inject @BatchProperty(name = "append")
+    String append;
+
+    @Inject @BatchProperty(name = "withHeader")
+    String withHeader;
+
+    @Inject @BatchProperty(name = "nullLiteral")
+    String nullLiteral;
+
+    @Inject @BatchProperty(name = "csvInjectionGuard")
+    String csvInjectionGuard;
+
+    private BufferedWriter bw;
+    private boolean wroteHeader = false;
+    private static final DateTimeFormatter TS_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ssXXX").withZone(ZoneOffset.UTC);
+
+    @Override
+    public void open(Serializable checkpoint) throws Exception {
+        File f = new File(output);
+        boolean doAppend = Boolean.parseBoolean(append);
+        if (!f.exists()) {
+            Files.createDirectories(f.getParentFile().toPath());
+            doAppend = false; // 新文件强制不追加
+        }
+        bw = new BufferedWriter(new FileWriter(f, doAppend, StandardCharsets.UTF_8));
+        if (!doAppend && Boolean.parseBoolean(withHeader)) {
+            bw.write("id,name,email,created_at");
+            bw.write("\n");
+            wroteHeader = true;
+        } else if (doAppend) {
+            wroteHeader = true; // 认为已有头
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void writeItems(List<Object> items) throws Exception {
+        for (Object obj : items) {
+            Map<String,Object> row = (Map<String,Object>) obj;
+            String line = String.join(",",
+                    csv(row.get("id")),
+                    csv(row.get("name")),
+                    csv(row.get("email")),
+                    csv(formatTs((Instant) row.get("created_at")))
+            );
+            bw.write(line);
+            bw.write("\n");
+        }
+        bw.flush();
+    }
+
+    @Override
+    public Serializable checkpointInfo() { return null; }
+
+    @Override
+    public void close() throws Exception {
+        if (bw != null) bw.close();
+    }
+
+    private String formatTs(Instant i) {
+        return i == null ? null : TS_FMT.format(i);
+    }
+
+    private String csv(Object v) {
+        String s = v == null ? (nullLiteral == null ? "" : nullLiteral) : v.toString();
+        if (Boolean.parseBoolean(csvInjectionGuard) && startsWithFormula(s)) {
+            s = "'" + s;
+        }
+        boolean needQuote = s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r");
+        if (s.contains("\"")) s = s.replace("\"", "\"\"");
+        return needQuote ? "\"" + s + "\"" : s;
+    }
+
+    private boolean startsWithFormula(String s) {
+        if (s.isEmpty()) return false;
+        char c = s.charAt(0);
+        return c=='=' || c=='+' || c=='-' || c=='@';
+    }
+}
+
+package app.batch;
+
+import jakarta.batch.api.BatchProperty;
+import jakarta.batch.api.chunk.ItemReader;
+import jakarta.batch.runtime.context.StepContext;
+import jakarta.enterprise.context.Dependent;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.annotation.Resource;
+import javax.sql.DataSource;
+import java.io.Serializable;
+import java.sql.*;
+import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+@Dependent
+@Named("UserJdbcReader")
+public class UserJdbcReader implements ItemReader {
+    @Resource(lookup = "jdbc/MyDS")   // 你的数据源 JNDI
+    private DataSource ds;
+
+    @Inject @BatchProperty(name = "selectSql")
+    String selectSql;
+
+    @Inject @BatchProperty(name = "fetchSize")
+    String fetchSizeStr;
+
+    @Inject
+    private StepContext stepCtx;
+
+    private Connection conn;
+    private PreparedStatement ps;
+    private ResultSet rs;
+    private long lastId = 0L;
+
+    @Override
+    public void open(Serializable checkpoint) throws Exception {
+        if (checkpoint != null) {
+            lastId = (long) checkpoint;
+        } else {
+            // 第一次运行也可从 JobParameters 里取起始ID
+            Object param = stepCtx.getProperties().get("startId");
+            if (param != null) lastId = Long.parseLong(param.toString());
+        }
+        conn = ds.getConnection();
+        conn.setAutoCommit(false); // 仅读取，保持一致性
+        ps = conn.prepareStatement(selectSql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        try { ps.setFetchSize(Integer.parseInt(fetchSizeStr)); } catch (Exception ignore) {}
+        ps.setLong(1, lastId);
+        rs = ps.executeQuery();
+    }
+
+    @Override
+    public Object readItem() throws Exception {
+        if (rs == null) return null;
+        if (!rs.next()) return null;
+
+        Map<String, Object> row = new HashMap<>();
+        long id = rs.getLong("id");
+        row.put("id", id);
+        row.put("name", rs.getString("name"));
+        row.put("email", rs.getString("email"));
+        Timestamp ts = rs.getTimestamp("created_at");
+        row.put("created_at", ts == null ? null : ts.toInstant());
+        lastId = id;
+        return row;
+    }
+
+    @Override
+    public Serializable checkpointInfo() throws Exception {
+        // 将最后处理的主键作为断点，支持重启
+        return lastId;
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (rs != null) rs.close();
+        if (ps != null) ps.close();
+        if (conn != null) conn.close();
+    }
+}

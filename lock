@@ -1,0 +1,76 @@
+package demo.batch.C.c1_jvm_lock;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import java.time.Duration;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
+
+@ApplicationScoped
+public class FileAppendLock {
+
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
+    private final ReentrantLock lock = new ReentrantLock(true);
+
+    @FunctionalInterface
+    public interface ThrowingSupplier<T> { T get() throws Exception; }
+
+    // 兼容旧版（会抛受检异常）
+    public <T> T withLockThrowing(ThrowingSupplier<T> block) throws Exception {
+        boolean ok = false;
+        try {
+            ok = lock.tryLock(DEFAULT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            if (!ok) throw new IllegalStateException("append lock timeout");
+            return block.get();
+        } finally {
+            if (ok) lock.unlock();
+        }
+    }
+
+    // ------- 不抛受检异常的便捷方法 -------
+
+    /** 默认 5s 超时；成功 true，超时/中断 false（会恢复中断标记） */
+    public boolean withLock(Runnable r) { return withLock(DEFAULT_TIMEOUT, r); }
+
+    /** 指定超时；成功 true，超时/中断 false（会恢复中断标记） */
+    public boolean withLock(Duration timeout, Runnable r) {
+        boolean ok = false;
+        try {
+            ok = lock.tryLock(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (!ok) return false;
+            r.run();
+            return true;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            if (ok) lock.unlock();
+        }
+    }
+
+    /** 阻塞直到拿到锁再执行；不抛受检异常（被中断时仅恢复中断标记） */
+    public void withLockBlocking(Runnable r) {
+        lock.lock();
+        try { r.run(); }
+        finally { lock.unlock(); }
+    }
+
+    /** 需要返回值的场景：成功 Optional.of(value)，失败 Optional.empty() */
+    public <T> Optional<T> withLock(java.util.function.Supplier<T> s) {
+        return withLock(DEFAULT_TIMEOUT, s);
+    }
+
+    public <T> Optional<T> withLock(Duration timeout, java.util.function.Supplier<T> s) {
+        boolean ok = false;
+        try {
+            ok = lock.tryLock(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (!ok) return Optional.empty();
+            return Optional.ofNullable(s.get());
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        } finally {
+            if (ok) lock.unlock();
+        }
+    }
+}
